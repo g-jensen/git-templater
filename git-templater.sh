@@ -108,7 +108,7 @@ apply_branches() {
         echo "Merging templates/$branch..."
         
         # Build merge command with optional strategy
-        local merge_cmd="git merge"
+        local merge_cmd="git merge --allow-unrelated-histories"
         if [[ -n "$merge_strategy" ]]; then
             merge_cmd="$merge_cmd -X $merge_strategy"
             echo "Using merge strategy: $merge_strategy"
