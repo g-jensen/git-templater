@@ -1,0 +1,55 @@
+name: "Usage and Help"
+description: "Test help output and basic usage patterns"
+
+scenarios:
+  - id: no_args
+    name: "No arguments shows usage"
+    run:
+      command: ${TEMPLATER}
+      timeout: 5s
+    assertions:
+      - command: "assert_contains Usage: ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains Commands: ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains list ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains apply ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: unknown_command
+    name: "Unknown command shows error and usage"
+    run:
+      command: ${TEMPLATER} unknown-cmd
+      timeout: 5s
+    assertions:
+      - command: "assert_contains 'Error: Unknown command' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains Usage: ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: list_missing_arg
+    name: "list without template repo shows usage"
+    run:
+      command: ${TEMPLATER} list
+      timeout: 5s
+    assertions:
+      - command: "assert_contains Usage: ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: apply_missing_args
+    name: "apply with insufficient args shows usage"
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO}
+      timeout: 5s
+    assertions:
+      - command: "assert_contains Usage: ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: apply_no_branches
+    name: "apply without branches shows error"
+    before:
+      run: ${HELPERS}/init-template-repo.sh ${TEMPLATE_REPO}
+      timeout: 5s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR}
+      timeout: 10s
+    assertions:
+      - command: "assert_contains 'Usage: git-templater' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"

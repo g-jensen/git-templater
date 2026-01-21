@@ -1,0 +1,64 @@
+name: "List Command"
+description: "Test branch listing functionality"
+
+scenarios:
+  - id: list_non_git_dir
+    name: "list fails on non-git directory"
+    run:
+      command: ${TEMPLATER} list ${TEMPLATE_REPO}
+      timeout: 5s
+    assertions:
+      - command: "assert_contains Error: ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'not a git repository' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: list_empty_repo
+    name: "list shows only master in new repo"
+    before:
+      run: ${HELPERS}/init-template-repo.sh ${TEMPLATE_REPO}
+      timeout: 5s
+    run:
+      command: ${TEMPLATER} list ${TEMPLATE_REPO}
+      timeout: 5s
+    assertions:
+      - command: "assert_contains 'Available branches' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains master ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: list_multiple_branches
+    name: "list shows all branches sorted"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: ${TEMPLATER} list ${TEMPLATE_REPO}
+      timeout: 5s
+    assertions:
+      - command: "assert_contains feature/auth ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains feature/logging ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains feature/database ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains master ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: list_excludes_head
+    name: "list excludes HEAD from output"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: bash -c "${TEMPLATER} list ${TEMPLATE_REPO} | grep -v HEAD || true"
+      timeout: 5s
+    assertions:
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: list_sorted_output
+    name: "list outputs branches in sorted order"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: bash -c "${TEMPLATER} list ${TEMPLATE_REPO} | ${HELPERS}/extract-branches.sh"
+      timeout: 5s
+    assertions:
+      - command: "assert_equals ${SPEC_ROOT}/fixtures/expected_branches.fixture ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"

@@ -1,0 +1,25 @@
+name: "git-templater"
+description: "Acceptance tests for git-templater.sh CLI tool"
+
+env:
+  TEMPLATER: "${SPEC_ROOT}/../git-templater.sh"
+  HELPERS: "${SPEC_ROOT}/helpers"
+  TEST_TMP: "/tmp/git-templater-test"
+  TEMPLATE_REPO: "${TEST_TMP}/template-repo"
+  TARGET_DIR: "${TEST_TMP}/target"
+
+before:
+  run: |
+    mkdir -p ${TEST_TMP}
+    chmod +x ${TEMPLATER}
+  timeout: 5s
+
+after:
+  run: rm -rf ${TEST_TMP}
+  timeout: 5s
+
+before_each:
+  run: |
+    rm -rf ${TEMPLATE_REPO} ${TARGET_DIR}
+    mkdir -p ${TEMPLATE_REPO} ${TARGET_DIR}
+  timeout: 5s

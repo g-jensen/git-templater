@@ -1,0 +1,105 @@
+name: "Apply Command"
+description: "Test applying feature branches to target directories"
+
+scenarios:
+  - id: apply_non_git_template
+    name: "apply fails on non-git template repo"
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/test
+      timeout: 10s
+    assertions:
+      - command: "assert_contains Error: ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'not a git repository' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: apply_single_branch
+    name: "apply single branch to new directory"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/auth
+        ${HELPERS}/verify-files.sh ${TARGET_DIR} base.txt auth.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Initializing git repository' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Fetching branches' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Merging templates/feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Successfully applied 1 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: base.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: auth.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: apply_multiple_branches
+    name: "apply multiple branches sequentially"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/auth feature/logging feature/database
+        ${HELPERS}/verify-files.sh ${TARGET_DIR} auth.txt logging.txt database.txt
+      timeout: 20s
+    assertions:
+      - command: "assert_contains 'Merging templates/feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Merging templates/feature/logging' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Merging templates/feature/database' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Successfully applied 3 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: auth.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: logging.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: database.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: apply_to_existing_repo
+    name: "apply to existing git repository"
+    before:
+      run: |
+        ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+        ${HELPERS}/init-target-repo.sh ${TARGET_DIR}
+      timeout: 20s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/auth
+        ${HELPERS}/verify-files.sh ${TARGET_DIR} existing.txt auth.txt
+      timeout: 15s
+    assertions:
+      - command: "bash -c \"! grep -q 'Initializing git repository' ${RUN_OUTPUT}/stdout\""
+      - command: "assert_contains 'Merging templates/feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Successfully applied 1 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: existing.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: auth.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: apply_dirty_working_tree
+    name: "apply fails with uncommitted changes"
+    before:
+      run: |
+        ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+        ${HELPERS}/init-target-repo.sh ${TARGET_DIR}
+        ${HELPERS}/make-dirty.sh ${TARGET_DIR}
+      timeout: 20s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/auth
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Error: Target directory has uncommitted changes' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Commit or stash them before applying templates' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: apply_hierarchical_branches
+    name: "apply parent and child branches"
+    before:
+      run: ${HELPERS}/setup-hierarchical.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} database/postgresql database/postgresql-migrations
+        ${HELPERS}/verify-files.sh ${TARGET_DIR} postgresql.txt migrations.txt
+      timeout: 20s
+    assertions:
+      - command: "assert_contains 'Merging templates/database/postgresql' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Merging templates/database/postgresql-migrations' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: postgresql.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: migrations.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"

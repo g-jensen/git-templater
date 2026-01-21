@@ -1,0 +1,38 @@
+name: "Conflict Handling"
+description: "Test behavior when merge conflicts occur"
+
+scenarios:
+  - id: unresolvable_conflict
+    name: "apply fails on merge conflict"
+    before:
+      run: ${HELPERS}/setup-conflicting-unmergeable.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/conflict-a feature/conflict-b
+      timeout: 20s
+    assertions:
+      - command: "assert_contains 'Error: Failed to merge' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Conflicts detected' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'git merge --abort' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: partial_application_on_conflict
+    name: "first branch succeeds, second fails on conflict"
+    before:
+      run: |
+        ${HELPERS}/setup-conflicting-unmergeable.sh ${TEMPLATE_REPO}
+        ${HELPERS}/create-feature-branch.sh ${TEMPLATE_REPO} feature/clean 'clean.txt' 'clean feature'
+      timeout: 20s
+    run:
+      command: |
+        set +e
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/clean feature/conflict-a feature/conflict-b
+        exit_code=$?
+        test -f ${TARGET_DIR}/clean.txt && echo "CLEAN_FILE_EXISTS: true"
+        exit $exit_code
+      timeout: 20s
+    assertions:
+      - command: "assert_contains 'Merging templates/feature/clean' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'CLEAN_FILE_EXISTS: true' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Error: Failed to merge' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"

@@ -1,0 +1,93 @@
+name: "Edge Cases"
+description: "Test boundary conditions and unusual scenarios"
+
+scenarios:
+  - id: nonexistent_branch
+    name: "apply fails on nonexistent branch"
+    before:
+      run: ${HELPERS}/init-template-repo.sh ${TEMPLATE_REPO}
+      timeout: 5s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} nonexistent/branch
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Error: Failed to merge' ${RUN_OUTPUT}/stdout"
+      - command: "assert_gt ${RUN_OUTPUT}/exit_code 0"
+
+  - id: relative_paths
+    name: "apply works with relative paths"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEST_TMP} && ${TEMPLATER} apply ./template-repo ./target feature/auth
+        ${HELPERS}/verify-files.sh ${TARGET_DIR} auth.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Successfully applied 1 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: auth.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: apply_master_branch
+    name: "apply master branch explicitly"
+    before:
+      run: ${HELPERS}/init-template-repo.sh ${TEMPLATE_REPO}
+      timeout: 5s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} master
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Merging templates/master' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Successfully applied 1 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: remote_templates_cleanup
+    name: "apply removes and re-adds templates remote"
+    before:
+      run: |
+        ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+        ${HELPERS}/init-target-repo.sh ${TARGET_DIR}
+        cd ${TARGET_DIR}
+        git remote add templates ${TEMPLATE_REPO}
+      timeout: 20s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} feature/auth
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Successfully applied 1 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: branch_with_slashes
+    name: "apply handles branches with slashes in names"
+    before:
+      run: ${HELPERS}/setup-hierarchical.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} database/postgresql-migrations
+        ${HELPERS}/verify-files.sh ${TARGET_DIR} migrations.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Merging templates/database/postgresql-migrations' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'EXISTS: migrations.txt' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: empty_target_created
+    name: "apply creates target directory if missing"
+    before:
+      run: |
+        ${HELPERS}/init-template-repo.sh ${TEMPLATE_REPO}
+        rm -rf ${TARGET_DIR}
+      timeout: 10s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} master
+        test -d ${TARGET_DIR} && echo "TARGET_DIR_EXISTS: true"
+        test -d ${TARGET_DIR}/.git && echo "GIT_DIR_EXISTS: true"
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'TARGET_DIR_EXISTS: true' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'GIT_DIR_EXISTS: true' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Successfully applied 1 feature' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"

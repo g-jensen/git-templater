@@ -1,0 +1,58 @@
+name: "Merge Strategy"
+description: "Test --strategy option for handling conflicts"
+
+scenarios:
+  - id: strategy_union
+    name: "apply with --strategy union combines files"
+    before:
+      run: ${HELPERS}/setup-conflicting.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} --strategy union feature/one feature/two
+        cat ${TARGET_DIR}/shared.txt
+      timeout: 20s
+    assertions:
+      - command: "assert_contains 'Using merge strategy: union' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Successfully applied 2 feature(s)' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'base content' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature one' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature two' ${RUN_OUTPUT}/stdout"
+      # - command: "assert_equals ${SPEC_ROOT}/fixtures/union_output.fixture ${TARGET_DIR}/shared.txt"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: strategy_theirs
+    name: "apply with --strategy theirs prefers incoming"
+    before:
+      run: ${HELPERS}/setup-conflicting.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} --strategy theirs feature/one
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Using merge strategy option: theirs' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: strategy_ours
+    name: "apply with --strategy ours prefers current"
+    before:
+      run: ${HELPERS}/setup-conflicting.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} --strategy ours feature/one
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Using merge strategy option: ours' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: strategy_position
+    name: "strategy flag works before branches"
+    before:
+      run: ${HELPERS}/init-template-repo.sh ${TEMPLATE_REPO}
+      timeout: 10s
+    run:
+      command: ${TEMPLATER} apply ${TEMPLATE_REPO} ${TARGET_DIR} --strategy union master
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Using merge strategy: union' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
