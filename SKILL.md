@@ -134,6 +134,8 @@ git commit -m "Initial project skeleton"
 
 ### Creating Feature Branches
 
+**IMPORTANT:** Git doesn't allow a branch name to be both a file and a directory. You cannot have both `feature/auth` and `feature/auth/oauth` branches. Use dashes for hierarchical extension: `feature/auth` and `feature/auth-oauth`.
+
 Branch names should use `/` to show hierarchy:
 
 ```bash
@@ -149,11 +151,13 @@ git checkout -b auth/oauth              # alternative to auth/jwt
 git checkout -b database/mysql          # alternative to database/postgresql
 
 # Hierarchical features (branch from parent feature)
+# Note: Git doesn't allow database/postgresql/migrations when database/postgresql exists
+# Use dashes or underscores instead: database/postgresql-migrations
 git checkout database/postgresql
-git checkout -b database/postgresql/migrations   # extends postgresql
+git checkout -b database/postgresql-migrations   # extends postgresql
 
 git checkout auth/jwt
-git checkout -b auth/jwt/refresh-tokens          # extends jwt
+git checkout -b auth/jwt-refresh-tokens          # extends jwt
 
 # Composition features (branch from master, import others)
 git checkout master
