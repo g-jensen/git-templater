@@ -103,6 +103,15 @@ apply_branches() {
     echo "Fetching branches from $template_repo"
     git fetch templates
     
+    # Setup union merge attribute if needed (must be done BEFORE any merges)
+    if [[ "$merge_strategy" == "union" ]]; then
+        echo "Configuring union merge..."
+        # Git has a built-in union merge attribute that runs diff3 and takes all unique lines
+        echo "* merge=union" > .gitattributes
+        git add .gitattributes
+        git commit -m "Setup union merge" --allow-empty
+    fi
+    
     # Merge each branch
     for branch in "${branches[@]}"; do
         echo "Merging templates/$branch..."
@@ -110,8 +119,14 @@ apply_branches() {
         # Build merge command with optional strategy
         local merge_cmd="git merge --allow-unrelated-histories"
         if [[ -n "$merge_strategy" ]]; then
-            merge_cmd="$merge_cmd -X $merge_strategy"
-            echo "Using merge strategy: $merge_strategy"
+            # union is a merge driver (configured above via .gitattributes)
+            # ours/theirs are strategy options for the recursive strategy
+            if [[ "$merge_strategy" != "union" ]]; then
+                merge_cmd="$merge_cmd -X $merge_strategy"
+                echo "Using merge strategy option: $merge_strategy"
+            else
+                echo "Using merge strategy: $merge_strategy"
+            fi
         fi
         merge_cmd="$merge_cmd templates/$branch -m \"Applied $branch\""
         
@@ -121,6 +136,14 @@ apply_branches() {
             exit 1
         fi
     done
+    
+    # Cleanup union merge attribute if it was set
+    if [[ "$merge_strategy" == "union" ]]; then
+        if [[ -f .gitattributes ]]; then
+            git rm -f .gitattributes
+            git commit -m "Remove union merge setup" --allow-empty
+        fi
+    fi
     
     echo
     echo "Successfully applied ${#branches[@]} feature(s)"
