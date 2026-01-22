@@ -20,8 +20,8 @@ Options:
 
 Examples:
     git-templater list ./templates
-    git-templater apply ./templates ./my-project feature/auth/google feature/auth/github
-    git-templater apply ./templates ./my-project --strategy union feature/auth/google
+    git-templater apply ./templates ./my-project feature/auth-google feature/auth-github
+    git-templater apply ./templates ./my-project --strategy union feature/auth-google
 EOF
     exit 1
 }
