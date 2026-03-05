@@ -18,4 +18,8 @@ Everything else should work fine without any extra installation.
 
 ## Install
 
-Copy the `git-templater.sh` script onto your path as `git-templater`
+```bash
+chmod +x git-templater.sh
+```
+
+Then, copy the `git-templater.sh` script onto your path as `git-templater`
