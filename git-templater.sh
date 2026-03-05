@@ -17,6 +17,10 @@ Commands:
         Recursively rebase current branch onto all branches that depend on it.
         The dependencies of a branch are found in its .template-deps.yaml file.
 
+    graph [template-repo]
+        Show the dependency graph as ASCII art. Uses .template-deps.yaml files.
+        If no repo path is given, uses the current directory.
+
 Options:
     --strategy <strategy>    Git merge strategy option (e.g., theirs, ours, union)
 
@@ -24,6 +28,7 @@ Examples:
     git-templater list ./templates
     git-templater apply ./templates ./my-project auth_google auth_github
     git-templater apply ./templates ./my-project --strategy union auth_google
+    git-templater graph ./templates
 EOF
     exit 1
 }
@@ -222,6 +227,39 @@ rebase_dependents() {
     git checkout "${current_branch}"
 }
 
+show_graph() {
+    local repo_dir
+    if [[ $# -ge 1 ]]; then
+        repo_dir="$1"
+    else
+        repo_dir="."
+    fi
+
+    if [[ ! -d "$repo_dir/.git" ]]; then
+        echo "Error: $repo_dir is not a git repository"
+        exit 1
+    fi
+
+    local branches
+    branches=$(git -C "$repo_dir" branch --format='%(refname:short)')
+
+    local edges=""
+    for branch in $branches; do
+        local deps
+        deps=$(git -C "$repo_dir" show "${branch}:.template-deps.yaml" 2>/dev/null || true)
+        if [[ -n "$deps" ]]; then
+            local dep
+            for dep in $(echo "$deps" | grep "^  - " | sed 's/^  - //'); do
+                edges+="[ $dep ] -> [ $branch ]"$'\n'
+            done
+        else
+            edges+="[ $branch ]"$'\n'
+        fi
+    done
+
+    echo "$edges" | graph-easy
+}
+
 # Main
 if [[ $# -lt 1 ]]; then
     usage
@@ -245,6 +283,9 @@ case "$command" in
         ;;
     rebase)
         rebase_dependents
+        ;;
+    graph)
+        show_graph "$@"
         ;;
     *)
         echo "Error: Unknown command '$command'"

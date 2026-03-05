@@ -1,0 +1,48 @@
+name: "Graph Command"
+description: "Test dependency graph visualization"
+
+scenarios:
+  - id: graph_no_deps
+    name: "graph with no dependencies shows isolated branches"
+    before:
+      run: ${HELPERS}/setup-multi-feature.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: ${TEMPLATER} graph ${TEMPLATE_REPO}
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature/database' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature/logging' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'master' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: graph_with_chain
+    name: "graph shows dependency edges"
+    before:
+      run: ${HELPERS}/setup-deps-chain.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: ${TEMPLATER} graph ${TEMPLATE_REPO}
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'feature/base-lib' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature/middleware' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature/api' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains -- '-->' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: graph_inside_repo
+    name: "graph with no args runs inside current repo"
+    before:
+      run: ${HELPERS}/setup-deps-chain.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} graph
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'feature/base-lib' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains -- '-->' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
