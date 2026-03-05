@@ -47,7 +47,7 @@ list_branches() {
     
     echo "Available branches in $template_repo:"
     echo
-    git -C "$template_repo" branch -a | sed 's/^..//' | grep -v 'HEAD' | sort
+    git -C "$template_repo" branch --format='%(refname:short)' | sort
 }
 
 apply_branches() {
@@ -267,10 +267,22 @@ show_graph() {
 pull_all() {
     git fetch --all --quiet
 
-    local branches
-    branches=$(git branch --format='%(refname:short)')
+    local local_branches
+    local_branches=$(git branch --format='%(refname:short)')
 
-    for branch in $branches; do
+    local remote_branches
+    remote_branches=$(git branch -r --format='%(refname:short)' | grep "^origin/" | sed 's|^origin/||' | grep -v "^HEAD$")
+
+    for branch in $remote_branches; do
+        if ! echo "$local_branches" | grep -qx "$branch"; then
+            git branch --track "$branch" "origin/${branch}" >/dev/null 2>&1
+            echo "Created ${branch}"
+        fi
+    done
+
+    local_branches=$(git branch --format='%(refname:short)')
+
+    for branch in $local_branches; do
         local remote_ref="origin/${branch}"
         if ! git rev-parse --verify "$remote_ref" >/dev/null 2>&1; then
             continue

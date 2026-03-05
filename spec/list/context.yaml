@@ -62,3 +62,19 @@ scenarios:
     assertions:
       - command: "assert_equals ${SPEC_ROOT}/fixtures/expected_branches.fixture ${RUN_OUTPUT}/stdout"
       - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: list_excludes_remotes
+    name: "list excludes remote tracking branches"
+    before:
+      run: ${HELPERS}/setup-with-remote.sh ${TEMPLATE_REPO} ${REMOTE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        ${TEMPLATER} list ${TEMPLATE_REPO}
+        printf 'REMOTE_COUNT: '
+        ${TEMPLATER} list ${TEMPLATE_REPO} | grep -c 'remotes/' || printf '0'
+      timeout: 5s
+    assertions:
+      - command: "assert_contains 'feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'REMOTE_COUNT: 0' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"

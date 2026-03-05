@@ -65,3 +65,27 @@ scenarios:
     assertions:
       - command: "assert_contains 'done' ${RUN_OUTPUT}/stdout"
       - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: pull_creates_missing_local_branches
+    name: "pull creates local branches for remote-only branches"
+    before:
+      run: |
+        ${HELPERS}/setup-with-remote.sh ${TEMPLATE_REPO} ${REMOTE_REPO}
+        rm -rf ${TEMPLATE_REPO}
+        git clone ${REMOTE_REPO} ${TEMPLATE_REPO}
+        cd ${TEMPLATE_REPO}
+        git config user.name "Test"
+        git config user.email "test@test.com"
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} pull
+        git branch --format='%(refname:short)' | sort
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Created feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Created feature/logging' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'feature/logging' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
