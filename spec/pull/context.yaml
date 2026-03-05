@@ -1,0 +1,67 @@
+name: "Pull Command"
+description: "Test pulling all branches from remote"
+
+scenarios:
+  - id: pull_fast_forward
+    name: "pull fast-forwards branches that are behind remote"
+    before:
+      run: |
+        ${HELPERS}/setup-with-remote.sh ${TEMPLATE_REPO} ${REMOTE_REPO}
+        cd ${TEMPLATE_REPO}
+        git rev-parse origin/feature/auth > ${TEST_TMP}/expected_sha
+        git checkout feature/auth
+        git reset --hard HEAD~1
+        git checkout master
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} pull
+        ACTUAL=$(git rev-parse feature/auth)
+        EXPECTED=$(cat ${TEST_TMP}/expected_sha)
+        if [ "$ACTUAL" = "$EXPECTED" ]; then
+          printf 'match'
+        else
+          printf "mismatch: $ACTUAL != $EXPECTED"
+        fi
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'match' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Updated feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: pull_skips_diverged
+    name: "pull skips branches with local-only commits"
+    before:
+      run: |
+        ${HELPERS}/setup-with-remote.sh ${TEMPLATE_REPO} ${REMOTE_REPO}
+        cd ${TEMPLATE_REPO}
+        git checkout feature/auth
+        printf 'local change\n' > local.txt
+        git add local.txt
+        git commit -m "Local-only commit"
+        git checkout master
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} pull
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Skipped feature/auth (has local changes not on remote)' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: pull_skips_up_to_date
+    name: "pull produces no output for up-to-date branches"
+    before:
+      run: ${HELPERS}/setup-with-remote.sh ${TEMPLATE_REPO} ${REMOTE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} pull
+        printf 'done'
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'done' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"

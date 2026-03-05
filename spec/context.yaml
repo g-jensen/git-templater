@@ -7,6 +7,7 @@ env:
   TEST_TMP: "/tmp/git-templater-test"
   TEMPLATE_REPO: "${TEST_TMP}/template-repo"
   TARGET_DIR: "${TEST_TMP}/target"
+  REMOTE_REPO: "${TEST_TMP}/remote-repo"
 
 before:
   run: |
@@ -20,6 +21,6 @@ after:
 
 before_each:
   run: |
-    rm -rf ${TEMPLATE_REPO} ${TARGET_DIR}
+    rm -rf ${TEMPLATE_REPO} ${TARGET_DIR} ${REMOTE_REPO}
     mkdir -p ${TEMPLATE_REPO} ${TARGET_DIR}
   timeout: 5s

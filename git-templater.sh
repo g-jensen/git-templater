@@ -21,6 +21,10 @@ Commands:
         Show the dependency graph as ASCII art. Uses .template-deps.yaml files.
         If no repo path is given, uses the current directory.
 
+    pull
+        Fetch and fast-forward all branches that have a remote tracking branch.
+        Skips branches with local-only commits.
+
 Options:
     --strategy <strategy>    Git merge strategy option (e.g., theirs, ours, union)
 
@@ -260,6 +264,32 @@ show_graph() {
     echo "$edges" | graph-easy
 }
 
+pull_all() {
+    git fetch --all --quiet
+
+    local branches
+    branches=$(git branch --format='%(refname:short)')
+
+    for branch in $branches; do
+        local remote_ref="origin/${branch}"
+        if ! git rev-parse --verify "$remote_ref" >/dev/null 2>&1; then
+            continue
+        fi
+
+        if git merge-base --is-ancestor "$branch" "$remote_ref"; then
+            local local_sha remote_sha
+            local_sha=$(git rev-parse "$branch")
+            remote_sha=$(git rev-parse "$remote_ref")
+            if [[ "$local_sha" != "$remote_sha" ]]; then
+                git update-ref "refs/heads/${branch}" "$remote_sha"
+                echo "Updated ${branch}"
+            fi
+        else
+            echo "Skipped ${branch} (has local changes not on remote)"
+        fi
+    done
+}
+
 # Main
 if [[ $# -lt 1 ]]; then
     usage
@@ -286,6 +316,9 @@ case "$command" in
         ;;
     graph)
         show_graph "$@"
+        ;;
+    pull)
+        pull_all
         ;;
     *)
         echo "Error: Unknown command '$command'"
