@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# turns out this entire Go repo can be essentially equated to a ~100 line bash script...
-
 set -e
 
 usage() {
@@ -14,14 +12,18 @@ Commands:
 
     apply <template-repo> <target-dir> [--strategy <strategy>] <branch...>
         Apply feature branches from template repo to target directory
+    
+    rebase
+        Recursively rebase current branch onto all branches that depend on it.
+        The dependencies of a branch are found in its .template-deps.yaml file.
 
 Options:
     --strategy <strategy>    Git merge strategy option (e.g., theirs, ours, union)
 
 Examples:
     git-templater list ./templates
-    git-templater apply ./templates ./my-project feature/auth-google feature/auth-github
-    git-templater apply ./templates ./my-project --strategy union feature/auth-google
+    git-templater apply ./templates ./my-project auth_google auth_github
+    git-templater apply ./templates ./my-project --strategy union auth_google
 EOF
     exit 1
 }
@@ -149,6 +151,77 @@ apply_branches() {
     echo "Successfully applied ${#branches[@]} feature(s)"
 }
 
+deps_of_branch() {
+    local branch="$1"
+    local deps_yaml
+    deps_yaml=$(git show "${branch}:.template-deps.yaml" 2>/dev/null || true)
+    if [[ -n "$deps_yaml" ]]; then
+        echo "$deps_yaml" | grep "^  - " | sed 's/^  - //'
+    fi
+}
+
+find_dependents_of() {
+    local target="$1"
+    shift
+    local all_branches=("$@")
+    local result=()
+    for branch in "${all_branches[@]}"; do
+        local dep
+        for dep in $(deps_of_branch "$branch"); do
+            if [[ "$dep" == "$target" ]]; then
+                result+=("$branch")
+                break
+            fi
+        done
+    done
+    echo "${result[@]}"
+}
+
+rebase_dependents() {
+    local current_branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+    local all_branches=()
+    while IFS= read -r b; do
+        all_branches+=("$b")
+    done < <(git branch --format='%(refname:short)')
+
+    local queue=("$current_branch")
+    local ordered=()
+    local -A rebase_onto
+    local visited=" ${current_branch} "
+
+    while [[ ${#queue[@]} -gt 0 ]]; do
+        local head="${queue[0]}"
+        queue=("${queue[@]:1}")
+
+        local deps
+        read -ra deps <<< "$(find_dependents_of "$head" "${all_branches[@]}")"
+        for dep in "${deps[@]}"; do
+            if [[ -z "$dep" ]]; then continue; fi
+            if [[ "$visited" != *" ${dep} "* ]]; then
+                visited+="${dep} "
+                ordered+=("$dep")
+                rebase_onto["$dep"]="$head"
+                queue+=("$dep")
+            fi
+        done
+    done
+
+    if [[ ${#ordered[@]} -eq 0 ]]; then
+        echo "No branches depend on ${current_branch}"
+        return 0
+    fi
+
+    for dep in "${ordered[@]}"; do
+        local parent="${rebase_onto[$dep]}"
+        echo "Rebasing ${dep} onto ${parent}"
+        git rebase "${parent}" "${dep}"
+    done
+
+    git checkout "${current_branch}"
+}
+
 # Main
 if [[ $# -lt 1 ]]; then
     usage
@@ -169,6 +242,9 @@ case "$command" in
             usage
         fi
         apply_branches "$@"
+        ;;
+    rebase)
+        rebase_dependents
         ;;
     *)
         echo "Error: Unknown command '$command'"

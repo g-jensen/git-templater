@@ -1,0 +1,107 @@
+name: "Rebase Command"
+description: "Test recursive rebasing of dependent branches"
+
+scenarios:
+  - id: rebase_no_dependents
+    name: "rebase with no dependents prints message"
+    before:
+      run: ${HELPERS}/setup-deps-repo.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        git checkout feature/auth
+        ${TEMPLATER} rebase
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'No branches depend on feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: rebase_single_dependent
+    name: "rebase updates direct dependent branch"
+    before:
+      run: ${HELPERS}/setup-single-dep.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} rebase
+        git show feature/child:parent.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Rebasing feature/child onto feature/parent' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'parent-updated' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: rebase_chain
+    name: "rebase propagates through chain of dependents"
+    before:
+      run: ${HELPERS}/setup-deps-chain.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} rebase
+        printf 'middleware: '
+        git show feature/middleware:base-lib.txt
+        printf 'api: '
+        git show feature/api:base-lib.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Rebasing feature/middleware onto feature/base-lib' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Rebasing feature/api onto feature/middleware' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'middleware: base-lib-updated' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'api: base-lib-updated' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: rebase_fanout
+    name: "rebase updates multiple direct dependents"
+    before:
+      run: ${HELPERS}/setup-deps-fanout.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} rebase
+        printf 'web: '
+        git show feature/web:core.txt
+        printf 'cli: '
+        git show feature/cli:core.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Rebasing feature/cli onto feature/core' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'Rebasing feature/web onto feature/core' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'web: core-updated' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'cli: core-updated' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: rebase_returns_to_original
+    name: "rebase returns to the original branch after completion"
+    before:
+      run: ${HELPERS}/setup-single-dep.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} rebase
+        git rev-parse --abbrev-ref HEAD
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'feature/parent' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
+
+  - id: rebase_non_first_dependency
+    name: "rebase onto correct parent when dependency is not first listed"
+    before:
+      run: ${HELPERS}/setup-deps-second-parent.sh ${TEMPLATE_REPO}
+      timeout: 15s
+    run:
+      command: |
+        cd ${TEMPLATE_REPO}
+        ${TEMPLATER} rebase
+        git show feature/app:auth.txt
+      timeout: 15s
+    assertions:
+      - command: "assert_contains 'Rebasing feature/app onto feature/auth' ${RUN_OUTPUT}/stdout"
+      - command: "assert_contains 'auth-updated' ${RUN_OUTPUT}/stdout"
+      - command: "assert_equals 0 ${RUN_OUTPUT}/exit_code"
